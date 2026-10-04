@@ -59,8 +59,9 @@ export default function SpecimenList() {
 
   const progressOf = (specimenId: string) => {
     const list = procedures.filter((p) => p.specimenId === specimenId);
-    const done = list.filter((p) => p.state === 'done').length;
-    return { total: list.length, done };
+    const done = list.filter((p) => p.state === 'done' && p.reviewStatus === 'current').length;
+    const blocking = list.filter((p) => p.reviewStatus !== 'current').length;
+    return { total: list.length, done, blocking };
   };
 
   const submit = async () => {
@@ -182,9 +183,14 @@ export default function SpecimenList() {
                   item={item}
                   onOpen={(id) => navigate(`/specimens/${id}`)}
                   footer={
-                    <Typography variant="caption" color="text.secondary">
-                      工序 {p.done}/{p.total} · {hardnessLabel(item.matrixHardness).label}
-                    </Typography>
+                    <Stack direction="row" spacing={0.5} alignItems="center" flexWrap="wrap">
+                      <Typography variant="caption" color="text.secondary">
+                        工序 {p.done}/{p.total} · {hardnessLabel(item.matrixHardness).label}
+                      </Typography>
+                      {p.blocking > 0 ? (
+                        <Chip size="small" color="warning" label={`待复核 / 待补 ${p.blocking}`} />
+                      ) : null}
+                    </Stack>
                   }
                 />
               );

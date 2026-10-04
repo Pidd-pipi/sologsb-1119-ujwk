@@ -16,8 +16,10 @@ import { useSpecimenStore } from '../stores/specimenStore';
 import { useProcedureStore } from '../stores/procedureStore';
 import { usePrepProgress } from '../hooks/usePrepProgress';
 import { ProcedureTimeline } from '../components/common/ProcedureTimeline';
+import { ReviewDialogs } from '../components/common/ReviewDialogs';
 import { MeasureField } from '../components/common/MeasureField';
 import { STEP_FIELD_MAP, STEP_TYPES, type StepType } from '../types/procedure';
+import { snapshotFromSpecimen } from '../utils/review';
 import { db } from '../utils/db';
 import { newId } from '../utils/id';
 import { makeSketchDataUrl, type PrepPhoto } from '../types/photo';
@@ -46,6 +48,8 @@ export default function ProcedureForm() {
   const [withPhotos, setWithPhotos] = useState(true);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [supplementId, setSupplementId] = useState<string | null>(null);
 
   const progress = usePrepProgress(specimenId || undefined);
   const fieldMap = STEP_FIELD_MAP[stepType];
@@ -97,6 +101,10 @@ export default function ProcedureForm() {
       operator: operator.trim(),
       startedAt: Date.now(),
       state: 'pending',
+      // 登记时快照标本基础字段（对照值），作为后续复核的基准
+      basisSnapshot: specimen ? snapshotFromSpecimen(specimen) : undefined,
+      basisHistory: specimen ? [snapshotFromSpecimen(specimen)] : [],
+      reviewStatus: 'current',
     });
 
     if (withPhotos && specimen) {
@@ -333,6 +341,9 @@ export default function ProcedureForm() {
           ) : null}
           <ProcedureTimeline
             items={progress.list}
+            currentBasis={specimen ? snapshotFromSpecimen(specimen) : undefined}
+            onConfirm={setConfirmId}
+            onSupplement={setSupplementId}
             onFinish={async (pid) => {
               await finish(pid);
               setToast('节点已完成');
@@ -344,6 +355,16 @@ export default function ProcedureForm() {
           />
         </Paper>
       </Box>
+
+      <ReviewDialogs
+        confirmId={confirmId}
+        supplementId={supplementId}
+        onClose={() => {
+          setConfirmId(null);
+          setSupplementId(null);
+        }}
+        onToast={setToast}
+      />
 
       <Snackbar open={!!toast} autoHideDuration={2600} onClose={() => setToast('')} message={toast} />
     </Stack>

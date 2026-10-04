@@ -43,6 +43,35 @@ export const STEP_FIELD_MAP: Record<
 /** 工序节点状态 */
 export type ProcedureState = 'pending' | 'done' | 'rolledback';
 
+/**
+ * 工序复核状态（独立于节点生命周期状态）。
+ * - current：对照值与标本当前基础字段一致，或已经负责人确认适用性
+ * - toreview：标本基础字段已变更，工具/胶种适用性待负责人重新确认
+ * - tosupply：工序缺少对照值快照，待补全，补全前不能当成已确认
+ */
+export type ReviewStatus = 'current' | 'toreview' | 'tosupply';
+
+/** 触发工序复核的标本基础字段 */
+export const BASIS_FIELDS = ['taxon', 'horizon', 'lithology', 'matrixHardness'] as const;
+export type BasisField = (typeof BASIS_FIELDS)[number];
+
+export const BASIS_FIELD_LABELS: Record<BasisField, string> = {
+  taxon: '分类鉴定',
+  horizon: '层位',
+  lithology: '围岩岩性',
+  matrixHardness: '莫氏硬度',
+};
+
+/** 对照值快照：工序登记 / 确认适用性时所依据的标本基础字段 */
+export interface BasisSnapshot {
+  taxon: string;
+  horizon: string;
+  lithology: string;
+  matrixHardness: number;
+  /** 快照采集时间 */
+  capturedAt: number;
+}
+
 /** 修复工序 */
 export interface PrepProcedure {
   id: string;
@@ -72,6 +101,16 @@ export interface PrepProcedure {
   startedAt: number;
   state: ProcedureState;
   finishedAt?: number;
+  /** 对照值快照（登记 / 确认时的标本基础字段） */
+  basisSnapshot?: BasisSnapshot;
+  /** 历次对照值快照，旧值保留 */
+  basisHistory?: BasisSnapshot[];
+  /** 复核状态，默认 current（迁移时对缺快照的记录补 tosupply） */
+  reviewStatus: ReviewStatus;
+  /** 最近一次适用性确认时间 */
+  lastConfirmedAt?: number;
+  /** 最近一次适用性确认责任人 */
+  lastConfirmedBy?: string;
 }
 
 export type PrepProcedureDraft = Omit<PrepProcedure, 'id'>;

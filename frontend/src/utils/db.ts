@@ -7,7 +7,7 @@ import { makeSketchDataUrl } from '../types/photo';
 import { newId } from './id';
 
 /** 当前数据结构版本，写入 localStorage 便于回显 */
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 export const DB_NAME = 'gbfossilprep';
 export const LS_VERSION_KEY = 'gbfossilprep:db-version';
 
@@ -52,6 +52,27 @@ class FossilPrepDB extends Dexie {
           .modify((row: any) => {
             if (!row.issues) row.issues = [];
             if (row.lowThreshold === undefined) row.lowThreshold = 1;
+          });
+      });
+    // v3：工序增加复核状态与对照值快照索引；缺快照的老记录按待补处理
+    this.version(3)
+      .stores({
+        specimens: 'id, specimenNo, taxon, locality, status, createdAt',
+        procedures: 'id, specimenId, seq, stepType, state, reviewStatus, startedAt',
+        supplies: 'id, kind, lotNo, name, openedAt',
+        photos: 'id, specimenId, procedureId, stage, capturedAt',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('procedures')
+          .toCollection()
+          .modify((row: any) => {
+            if (row.reviewStatus === undefined) {
+              row.reviewStatus = row.basisSnapshot ? 'current' : 'tosupply';
+            }
+            if (row.basisHistory === undefined) {
+              row.basisHistory = row.basisSnapshot ? [row.basisSnapshot] : [];
+            }
           });
       });
   }
@@ -138,6 +159,25 @@ export async function ensureSeedData(): Promise<void> {
       startedAt: now - 10 * day,
       state: 'done',
       finishedAt: now - 10 * day + 145 * 60000,
+      basisSnapshot: {
+        taxon: specimens[0].taxon,
+        horizon: specimens[0].horizon,
+        lithology: specimens[0].lithology,
+        matrixHardness: specimens[0].matrixHardness,
+        capturedAt: now - 10 * day,
+      },
+      basisHistory: [
+        {
+          taxon: specimens[0].taxon,
+          horizon: specimens[0].horizon,
+          lithology: specimens[0].lithology,
+          matrixHardness: specimens[0].matrixHardness,
+          capturedAt: now - 10 * day,
+        },
+      ],
+      reviewStatus: 'current',
+      lastConfirmedAt: now - 10 * day + 145 * 60000,
+      lastConfirmedBy: '林砚秋',
     },
     {
       id: newId('prc'),
@@ -157,6 +197,25 @@ export async function ensureSeedData(): Promise<void> {
       operator: '林砚秋',
       startedAt: now - 6 * day,
       state: 'pending',
+      basisSnapshot: {
+        taxon: specimens[0].taxon,
+        horizon: specimens[0].horizon,
+        lithology: specimens[0].lithology,
+        matrixHardness: specimens[0].matrixHardness,
+        capturedAt: now - 6 * day,
+      },
+      basisHistory: [
+        {
+          taxon: specimens[0].taxon,
+          horizon: specimens[0].horizon,
+          lithology: specimens[0].lithology,
+          matrixHardness: specimens[0].matrixHardness,
+          capturedAt: now - 6 * day,
+        },
+      ],
+      reviewStatus: 'current',
+      lastConfirmedAt: now - 6 * day,
+      lastConfirmedBy: '林砚秋',
     },
   ];
 
