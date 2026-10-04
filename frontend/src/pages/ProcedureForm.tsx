@@ -16,11 +16,14 @@ import { useSpecimenStore } from '../stores/specimenStore';
 import { useProcedureStore } from '../stores/procedureStore';
 import { usePrepProgress } from '../hooks/usePrepProgress';
 import { ProcedureTimeline } from '../components/common/ProcedureTimeline';
+import { ProcedureReviewDialog } from '../components/common/ProcedureReviewDialog';
 import { MeasureField } from '../components/common/MeasureField';
 import { STEP_FIELD_MAP, STEP_TYPES, type StepType } from '../types/procedure';
 import { db } from '../utils/db';
 import { newId } from '../utils/id';
+import { specimenBaseline } from '../utils/review';
 import { makeSketchDataUrl, type PrepPhoto } from '../types/photo';
+import type { PrepProcedure } from '../types/procedure';
 
 /** /procedures/new 新建工序节点：选类型动态出字段，序号跳号报错 */
 export default function ProcedureForm() {
@@ -46,6 +49,7 @@ export default function ProcedureForm() {
   const [withPhotos, setWithPhotos] = useState(true);
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
+  const [reviewTarget, setReviewTarget] = useState<PrepProcedure | null>(null);
 
   const progress = usePrepProgress(specimenId || undefined);
   const fieldMap = STEP_FIELD_MAP[stepType];
@@ -97,6 +101,8 @@ export default function ProcedureForm() {
       operator: operator.trim(),
       startedAt: Date.now(),
       state: 'pending',
+      // 登记时快照分类 / 层位 / 岩性 / 硬度作为适用性对照值
+      baseline: specimen ? specimenBaseline(specimen) : undefined,
     });
 
     if (withPhotos && specimen) {
@@ -334,16 +340,29 @@ export default function ProcedureForm() {
           <ProcedureTimeline
             items={progress.list}
             onFinish={async (pid) => {
-              await finish(pid);
-              setToast('节点已完成');
+              try {
+                await finish(pid);
+                setToast('节点已完成');
+              } catch (e) {
+                setToast((e as Error).message);
+              }
             }}
             onRollback={async (pid) => {
               await rollback(pid);
               setToast('节点已回退');
             }}
+            onReview={(p) => setReviewTarget(p)}
           />
         </Paper>
       </Box>
+
+      <ProcedureReviewDialog
+        procedure={reviewTarget}
+        onClose={() => setReviewTarget(null)}
+        onResumed={(p) =>
+          setToast(`工序 #${p.seq} 已通过复核，恢复为「${p.state === 'done' ? '已完成' : p.state === 'rolledback' ? '已回退' : '待办'}」`)
+        }
+      />
 
       <Snackbar open={!!toast} autoHideDuration={2600} onClose={() => setToast('')} message={toast} />
     </Stack>

@@ -23,6 +23,7 @@ import { SpecimenCard } from '../components/common/SpecimenCard';
 import { MeasureField } from '../components/common/MeasureField';
 import { SPECIMEN_STATUSES, type SpecimenDraft, type SpecimenStatus } from '../types/specimen';
 import { hardnessLabel, mmToInch } from '../utils/unitConvert';
+import { procedureGate } from '../utils/review';
 
 const EMPTY_DRAFT: SpecimenDraft = {
   specimenNo: '',
@@ -59,8 +60,11 @@ export default function SpecimenList() {
 
   const progressOf = (specimenId: string) => {
     const list = procedures.filter((p) => p.specimenId === specimenId);
-    const done = list.filter((p) => p.state === 'done').length;
-    return { total: list.length, done };
+    // 待复核 / 待补对照值节点不计入完成数
+    const done = list.filter((p) => procedureGate(p).countsAsDone).length;
+    const review = list.filter((p) => p.state === 'review').length;
+    const baselineMissing = list.filter((p) => procedureGate(p).baselineMissing && p.state !== 'review').length;
+    return { total: list.length, done, review, baselineMissing };
   };
 
   const submit = async () => {
@@ -182,9 +186,21 @@ export default function SpecimenList() {
                   item={item}
                   onOpen={(id) => navigate(`/specimens/${id}`)}
                   footer={
-                    <Typography variant="caption" color="text.secondary">
-                      工序 {p.done}/{p.total} · {hardnessLabel(item.matrixHardness).label}
-                    </Typography>
+                    <Stack spacing={0.5}>
+                      <Typography variant="caption" color="text.secondary">
+                        工序 {p.done}/{p.total} · {hardnessLabel(item.matrixHardness).label}
+                      </Typography>
+                      {p.review > 0 || p.baselineMissing > 0 ? (
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                          {p.review > 0 ? (
+                            <Chip size="small" color="warning" label={`待复核 ${p.review}`} />
+                          ) : null}
+                          {p.baselineMissing > 0 ? (
+                            <Chip size="small" color="error" label={`待补 ${p.baselineMissing}`} />
+                          ) : null}
+                        </Stack>
+                      ) : null}
+                    </Stack>
                   }
                 />
               );

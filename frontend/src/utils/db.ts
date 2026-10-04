@@ -7,7 +7,7 @@ import { makeSketchDataUrl } from '../types/photo';
 import { newId } from './id';
 
 /** 当前数据结构版本，写入 localStorage 便于回显 */
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 export const DB_NAME = 'gbfossilprep';
 export const LS_VERSION_KEY = 'gbfossilprep:db-version';
 
@@ -54,6 +54,14 @@ class FossilPrepDB extends Dexie {
             if (row.lowThreshold === undefined) row.lowThreshold = 1;
           });
       });
+    // v3：标本卡增加修订留痕（revisions）；工序增加对照值 baseline、待复核 review / reviewLogs。
+    // 纯对象内新增字段，不涉及索引；历史工序无 baseline，运行期按「待补对照值」处理。
+    this.version(3).stores({
+      specimens: 'id, specimenNo, taxon, locality, status, createdAt',
+      procedures: 'id, specimenId, seq, stepType, state, startedAt',
+      supplies: 'id, kind, lotNo, name, openedAt',
+      photos: 'id, specimenId, procedureId, stage, capturedAt',
+    });
   }
 }
 
@@ -138,6 +146,12 @@ export async function ensureSeedData(): Promise<void> {
       startedAt: now - 10 * day,
       state: 'done',
       finishedAt: now - 10 * day + 145 * 60000,
+      baseline: {
+        taxon: 'Sinokannemeyeria yingchiaoensis（山西肯氏兽）',
+        horizon: '中三叠统二马营组',
+        lithology: '紫红色粉砂质泥岩',
+        matrixHardness: 2.5,
+      },
     },
     {
       id: newId('prc'),
@@ -157,6 +171,12 @@ export async function ensureSeedData(): Promise<void> {
       operator: '林砚秋',
       startedAt: now - 6 * day,
       state: 'pending',
+      baseline: {
+        taxon: 'Sinokannemeyeria yingchiaoensis（山西肯氏兽）',
+        horizon: '中三叠统二马营组',
+        lithology: '紫红色粉砂质泥岩',
+        matrixHardness: 2.5,
+      },
     },
   ];
 
